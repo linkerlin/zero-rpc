@@ -1,0 +1,11 @@
+*.class
+
+#for maven idea
+target
+*.iml
+.idea
+*.log
+
+# Package Files #
+*.jar
+*.war
