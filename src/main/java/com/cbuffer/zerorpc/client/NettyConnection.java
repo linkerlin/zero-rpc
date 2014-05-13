@@ -1,31 +1,34 @@
 package com.cbuffer.zerorpc.client;
 
 
-import com.cbuffer.zerorpc.client.packet.collector.PacketCollector;
-import com.cbuffer.zerorpc.client.packet.collector.PacketCollectorManager;
-import com.cbuffer.zerorpc.client.packet.filter.PacketFilter;
-import com.cbuffer.zerorpc.packet.RpcPacket;
-import com.cbuffer.zerorpc.protobuf.Rpc;
+import com.cbuffer.zerorpc.client.collector.PacketCollector;
+import com.cbuffer.zerorpc.client.collector.PacketCollectorManager;
+import com.cbuffer.zerorpc.client.collector.PacketListener;
+import com.cbuffer.zerorpc.client.collector.filter.PacketAllFilter;
+import com.cbuffer.zerorpc.client.collector.filter.PacketFilter;
+import com.cbuffer.zerorpc.common.SimpleLoggingHandler;
+import com.cbuffer.zerorpc.common.coder.RpcProtobufDecoder;
+import com.cbuffer.zerorpc.common.coder.RpcProtobufEncoder;
+import com.cbuffer.zerorpc.common.packet.RpcPacket;
 import com.google.protobuf.MessageLite;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.SocketTimeoutException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeoutException;
 
 /**
- * 上海卓领通讯技术有限公司
- * User: xingsen@join-cn.com
- * Date: 13-8-22
- * Time: 下午12:32
+ * fireflyc@icloud.com
  */
 public class NettyConnection {
+    private Logger logger = LoggerFactory.getLogger(NettyConnection.class);
+
     private final NioEventLoopGroup group;
     private final Bootstrap bootstrap;
     private final PacketCollectorManager packetCollectorManager;
@@ -33,11 +36,12 @@ public class NettyConnection {
     private int port;
     private Channel channel;
 
-    public NettyConnection(String host, int port, ChannelHandler channelHandler, PacketCollectorManager packetCollectorManager) {
-        this(host, port, channelHandler, packetCollectorManager, null);
+    public NettyConnection(String host, int port) {
+        this(host, port, new PacketCollectorManager(), null);
     }
 
-    public NettyConnection(String host, int port, ChannelHandler channelHandler, PacketCollectorManager packetCollectorManager, ThreadFactory threadFactory) {
+    public NettyConnection(String host, int port,
+                           final PacketCollectorManager packetCollectorManager, ThreadFactory threadFactory) {
         this.host = host;
         this.port = port;
         if (threadFactory == null) {
@@ -48,33 +52,38 @@ public class NettyConnection {
         bootstrap = new Bootstrap();
         bootstrap.group(group)
                 .channel(NioSocketChannel.class)
-                .handler(channelHandler);
+                .handler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ChannelPipeline pipeline = ch.pipeline();
+                        pipeline.addLast("logging", new SimpleLoggingHandler());
+                        pipeline.addLast("decoder", new RpcProtobufDecoder());
+                        pipeline.addLast("encoder", new RpcProtobufEncoder());
+                        pipeline.addLast("handler", new ClientHandler(packetCollectorManager));
+                    }
+                });
         this.packetCollectorManager = packetCollectorManager;
     }
 
-    public void connection() throws InterruptedException, IOException {
+    public ChannelFuture connection() throws InterruptedException, IOException {
         ChannelFuture channelFuture = bootstrap.connect(host, port).sync();
         channelFuture.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
         channel = channelFuture.channel();
+        return channelFuture;
     }
 
     public void sendPacket(MessageLite payload) {
         channel.writeAndFlush(new RpcPacket(payload));
     }
 
-    public MessageLite sendPacket(MessageLite payload, PacketFilter packetFilter) throws SocketTimeoutException {
+    public MessageLite sendPacket(MessageLite payload, PacketFilter packetFilter)
+            throws TimeoutException {
         PacketCollector packetCollector = packetCollectorManager.createPacketCollector(packetFilter);
         try {
             channel.writeAndFlush(new RpcPacket(payload));
             RpcPacket result = packetCollector.nextResultOrTimeOut();
             if (result == null) {
-                throw new SocketTimeoutException();
-            }
-            if (result.getPayload() instanceof Rpc.RpcResponse) {
-                Rpc.RpcResponse response = (Rpc.RpcResponse) result.getPayload();
-                if (!response.getSuccess()) {
-                    throw new RuntimeException(response.getErrorMsg());
-                }
+                throw new TimeoutException();
             }
             return result.getPayload();
         } catch (InterruptedException e) {
@@ -99,5 +108,17 @@ public class NettyConnection {
             return false;
         }
         return channel.isOpen();
+    }
+
+    public PacketCollectorManager getPacketCollectorManager() {
+        return packetCollectorManager;
+    }
+
+    public void addListener(PacketListener listener) {
+        packetCollectorManager.addListener(listener, new PacketAllFilter());
+    }
+
+    public Channel getChannel() {
+        return channel;
     }
 }

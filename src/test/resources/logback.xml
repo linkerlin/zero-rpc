@@ -19,7 +19,7 @@
     </appender>
 
     <logger name="com.cbuffer.zerorpc" level="DEBUG"/>
-    <logger name="io.netty.handler.logging" level="DEBUG"/>
+    <logger name="com.cbuffer.zerorpc.common.SimpleLoggingHandler" level="ERROR"/>
 
     <root level="WARN">
         <!-- 设置接收所有输出的通道 -->

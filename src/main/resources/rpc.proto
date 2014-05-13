@@ -1,4 +1,4 @@
-option java_package = "com.cbuffer.zerorpc.protobuf";
+option java_package = "com.cbuffer.zerorpc.common.protobuf";
 
 message Login {
     required string username = 2; //用户名
@@ -13,9 +13,9 @@ message LoginResponse {
 message RpcRequest {
     required uint64 requestId = 1; //调用编号,唯一
     required string token = 2; //登录token
-    required uint32 serviceName = 3; //服务对象
-    required uint32 method = 4; //方法
-    required bytes parameter = 5; //参数
+    required string serviceName = 3; //服务对象
+    required string method = 4; //方法
+    optional bytes parameter = 5; //参数
     required bool async = 6; //是否异步
 }
 
