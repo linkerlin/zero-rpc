@@ -40,20 +40,4 @@
         </dependency>
     </dependencies>
 
-
-    <!--发布-->
-    <distributionManagement>
-        <repository>
-            <id>joinsoft-library-releases</id>
-            <name>joinsoft-releases</name>
-            <url>http://61.172.243.73:3000/maven-web/content/repositories/releases/</url>
-        </repository>
-
-        <snapshotRepository>
-            <id>snapshots</id>
-            <name>joinsoft-library-snapshots</name>
-            <url>http://61.172.243.73:3000/mavne-web/content/repositories/snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
-
 </project>
